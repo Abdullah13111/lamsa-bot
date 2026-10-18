@@ -5,6 +5,7 @@ import logging
 import secrets
 import time
 from collections import defaultdict, deque
+from contextlib import asynccontextmanager
 from threading import Lock
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
@@ -20,7 +21,16 @@ from .store import get_store
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("lamsa-bot")
 
-app = FastAPI(title="Lamsa bot", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Close Postgres connections on shutdown so redeploys don't hang on them.
+    store = get_store()
+    if hasattr(store, "pool"):
+        store.pool.close()
+
+
+app = FastAPI(title="Lamsa bot", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
