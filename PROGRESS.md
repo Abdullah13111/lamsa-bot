@@ -19,8 +19,15 @@ Wrangler registered the account's workers.dev subdomain as `lamsa-bot` on first 
 the dashboard under Workers > Subdomain; every worker on the account uses it).
 
 Next:
-1. Meta: WhatsApp Cloud API app, test number, webhook `https://lamsa-bot.lamsa-bot.workers.dev/webhook`, subscribe to
-   `messages`; then `wrangler secret put` WA_VERIFY_TOKEN, WA_APP_SECRET, WA_ACCESS_TOKEN.
+1. Meta: BLOCKED 2026-10-19. The first app's test WhatsApp account (Lamsa Demo portfolio) was restricted
+   permanently ("verify your business", error 131031). A second app reused the same locked account, and
+   the Facebook account hit the portfolio creation limit. The user is deleting the apps + portfolio to retry
+   later; verification needs a REAL business (Lamsa is fictional; never verify it as Lamsa).
+   Bot side is ready: WA_VERIFY_TOKEN secret is set (also in .dev.vars) and verification tested OK.
+   When an unrestricted account exists: webhook `https://lamsa-bot.lamsa-bot.workers.dev/webhook`, subscribe
+   to `messages`, user puts WA_APP_SECRET + WA_ACCESS_TOKEN in .dev.vars, then
+   `npx wrangler deploy --secrets-file .dev.vars`. Fallback: Twilio sandbox adapter (needs a 2nd Twilio
+   account; the first one runs the price-compare bot).
 2. Done 2026-10-19: site widget enabled (lamsa-website 7f3e351), points at https://lamsa-bot.lamsa-bot.workers.dev/chat;
    the user still needs to try it on a phone.
 
