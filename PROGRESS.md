@@ -21,8 +21,8 @@ the dashboard under Workers > Subdomain; every worker on the account uses it).
 Next:
 1. Meta: WhatsApp Cloud API app, test number, webhook `https://lamsa-bot.lamsa-bot.workers.dev/webhook`, subscribe to
    `messages`; then `wrangler secret put` WA_VERIFY_TOKEN, WA_APP_SECRET, WA_ACCESS_TOKEN.
-2. Website: set `CHAT_ENABLED = true` and `CHAT_API_URL = "https://lamsa-bot.lamsa-bot.workers.dev/chat"` in
-   lamsa-website `src/config.ts`.
+2. Done 2026-10-19: site widget enabled (lamsa-website 7f3e351), points at https://lamsa-bot.lamsa-bot.workers.dev/chat;
+   the user still needs to try it on a phone.
 
 ## Notes
 
