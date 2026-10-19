@@ -12,12 +12,16 @@ admin page. Test rows were deleted afterwards.
 Done earlier: GitHub repo `Abdullah13111/lamsa-bot`. Neon project `lamsa-bot` (Singapore, pooled URL in
 local `.dev.vars`). Gemini: reuses the Dubai Agent Network key (shared free quota).
 
+LIVE 2026-10-19 at https://lamsa-bot.lamsa-bot.workers.dev (Cloudflare account abdu.saleh92@hotmail.com).
+Secrets GEMINI_API_KEY, DATABASE_URL, ADMIN_TOKEN uploaded with `npx wrangler deploy --secrets-file .dev.vars`.
+Live check passed: health (postgres), EN + AR chat, CORS for the site, admin 401/200.
+Wrangler registered the account's workers.dev subdomain as `lamsa-bot` on first deploy (changeable in
+the dashboard under Workers > Subdomain; every worker on the account uses it).
+
 Next:
-1. `npx wrangler login` (expired), then `wrangler secret put` GEMINI_API_KEY, DATABASE_URL, ADMIN_TOKEN,
-   then `npm run deploy`. URL will be `https://lamsa-bot.<account>.workers.dev`.
-2. Meta: WhatsApp Cloud API app, test number, webhook `https://<worker-url>/webhook`, subscribe to
+1. Meta: WhatsApp Cloud API app, test number, webhook `https://lamsa-bot.lamsa-bot.workers.dev/webhook`, subscribe to
    `messages`; then `wrangler secret put` WA_VERIFY_TOKEN, WA_APP_SECRET, WA_ACCESS_TOKEN.
-3. Website: set `CHAT_ENABLED = true` and `CHAT_API_URL = "https://<worker-url>/chat"` in
+2. Website: set `CHAT_ENABLED = true` and `CHAT_API_URL = "https://lamsa-bot.lamsa-bot.workers.dev/chat"` in
    lamsa-website `src/config.ts`.
 
 ## Notes
