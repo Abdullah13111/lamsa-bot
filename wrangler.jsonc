@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lamsa-bot",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  // Client knowledge files are bundled as plain text.
+  "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }],
+  // Per-visitor limit on /chat. Protects the free Gemini quota.
+  "ratelimits": [
+    { "name": "WEB_LIMITER", "namespace_id": "1001", "simple": { "limit": 6, "period": 60 } }
+  ],
+  "vars": {
+    "GEMINI_MODEL": "gemini-2.5-flash",
+    "WA_GRAPH_VERSION": "v23.0",
+    "WA_CLIENT_ID": "lamsa",
+    "CORS_ORIGINS": "https://lamsa-website-theta.vercel.app,http://localhost:4321"
+  }
+  // Secrets (wrangler secret put): GEMINI_API_KEY, DATABASE_URL, WA_VERIFY_TOKEN,
+  // WA_APP_SECRET, WA_ACCESS_TOKEN, ADMIN_TOKEN
+}

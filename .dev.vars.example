@@ -1,0 +1,13 @@
+# Copy to .dev.vars for `npm run dev`. Never commit .dev.vars.
+GEMINI_API_KEY=
+
+# Neon connection string. Empty = in-memory storage (lost when the worker restarts).
+DATABASE_URL=
+
+# WhatsApp Cloud API (developers.facebook.com > your app > WhatsApp)
+WA_VERIFY_TOKEN=any-long-random-string-you-choose
+WA_APP_SECRET=
+WA_ACCESS_TOKEN=
+
+# Password for /admin/bookings (any username)
+ADMIN_TOKEN=

@@ -1,6 +1,6 @@
 # Lamsa bot
 
-AI booking assistant for salons. One FastAPI service answers on **WhatsApp** (Meta Cloud API) and in the
+AI booking assistant for salons. One Cloudflare Worker answers on **WhatsApp** (Meta Cloud API) and in the
 **website chat widget**, using Gemini. Lamsa Beauty Lounge is the first (fictional) client; its knowledge
 lives in `clients/lamsa.md`.
 
@@ -25,21 +25,29 @@ lives in `clients/lamsa.md`.
 ## Run locally
 
 ```sh
-py -3.13 -m venv .venv
-.venv/Scripts/python -m pip install -r requirements-dev.txt
-cp .env.example .env        # add GEMINI_API_KEY at least
-.venv/Scripts/python -m uvicorn app.main:app --reload --port 8765
-.venv/Scripts/python -m pytest -q
+npm install
+cp .dev.vars.example .dev.vars   # add GEMINI_API_KEY at least
+npm run dev                      # http://localhost:8787
+npm test
+npm run typecheck
 ```
 
-Without `DATABASE_URL` it stores chats and bookings in memory (lost on restart).
+Without `DATABASE_URL` it stores chats and bookings in memory (lost when the worker restarts).
 
 ## Add another salon
 
 1. Copy `clients/lamsa.md` to `clients/<id>.md` and rewrite the facts. The first line is the salon name.
-2. The website widget sends `client_id: "<id>"`.
-3. WhatsApp: one number per deployment for now (`WA_CLIENT_ID`).
+2. Import it in `src/clients.ts` and add it to `KNOWLEDGE`.
+3. The website widget sends `client_id: "<id>"`.
+4. WhatsApp: one number per deployment for now (`WA_CLIENT_ID` in `wrangler.jsonc`).
 
 ## Deploy
 
-Railway runs `railway.json` (uvicorn, health check on `/health`). Set the variables from `.env.example`.
+```sh
+npx wrangler login
+npx wrangler secret put GEMINI_API_KEY    # repeat for DATABASE_URL, ADMIN_TOKEN, WA_* secrets
+npm run deploy
+```
+
+Plain settings (model, Graph API version, allowed sites) are `vars` in `wrangler.jsonc`. The chat is
+limited to 6 messages a minute per visitor (Cloudflare rate limit binding) and 300 an hour in total.
