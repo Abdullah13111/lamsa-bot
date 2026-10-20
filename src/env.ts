@@ -11,6 +11,9 @@ export interface Env {
   WA_ACCESS_TOKEN?: string;
   WA_GRAPH_VERSION?: string;
   WA_CLIENT_ID?: string;
+  // WhatsApp through Twilio (sandbox), webhook /twilio. Also answers as WA_CLIENT_ID.
+  TWILIO_ACCOUNT_SID?: string;
+  TWILIO_AUTH_TOKEN?: string;
   // Comma-separated sites allowed to call /chat.
   CORS_ORIGINS?: string;
   // Password for /admin/bookings (any username). Empty = admin page disabled.

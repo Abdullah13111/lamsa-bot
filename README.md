@@ -1,6 +1,6 @@
 # Lamsa bot
 
-AI booking assistant for salons. One Cloudflare Worker answers on **WhatsApp** (Meta Cloud API) and in the
+AI booking assistant for salons. One Cloudflare Worker answers on **WhatsApp** (Meta Cloud API or Twilio) and in the
 **website chat widget**, using Gemini, with chats and bookings in Cloudflare D1. Lamsa Beauty Lounge is the first (fictional) client; its knowledge
 lives in `clients/lamsa.md`.
 
@@ -20,6 +20,7 @@ lives in `clients/lamsa.md`.
 | POST | `/chat` | Website widget: `{client_id, message, session_id}` → `{reply}` |
 | GET | `/webhook` | Meta webhook verification (`WA_VERIFY_TOKEN`) |
 | POST | `/webhook` | Incoming WhatsApp messages (signed with `WA_APP_SECRET`) |
+| POST | `/twilio` | Incoming WhatsApp messages through Twilio (signed with `TWILIO_AUTH_TOKEN`) |
 | GET | `/admin/bookings?client_id=lamsa` | Booking requests table |
 
 ## Run locally

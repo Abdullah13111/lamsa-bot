@@ -1,8 +1,9 @@
-/** HTTP entry points: web chat, WhatsApp webhook, bookings admin page. */
+/** HTTP entry points: web chat, WhatsApp webhooks (Meta, Twilio), bookings admin page. */
 import * as agent from "./agent";
 import { getClient } from "./clients";
 import { type Env, setting } from "./env";
 import { getStore, type BookingRow } from "./store";
+import * as twilio from "./twilio";
 import * as whatsapp from "./whatsapp";
 
 // Ceiling for all web visitors together, in case per-IP limits are dodged.
@@ -79,11 +80,32 @@ async function receiveWebhook(request: Request, env: Env, ctx: ExecutionContext)
     return error(400, "Invalid JSON");
   }
   // Answer Meta at once; a slow reply would make it retry the webhook.
-  for (const msg of whatsapp.parse(payload)) ctx.waitUntil(handleWhatsapp(env, msg));
+  for (const msg of whatsapp.parse(payload)) ctx.waitUntil(handleWhatsapp(env, msg, whatsapp.sendText));
   return json({ ok: true });
 }
 
-async function handleWhatsapp(env: Env, msg: whatsapp.Incoming): Promise<void> {
+/** Twilio WhatsApp (sandbox): same bot, replies go out through Twilio's API. */
+async function receiveTwilio(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const params = new URLSearchParams(await request.text());
+  const ok = await twilio.verifySignature(
+    request.url,
+    params,
+    request.headers.get("X-Twilio-Signature"),
+    setting(env, "TWILIO_AUTH_TOKEN"),
+  );
+  if (!ok) {
+    console.warn("Rejected Twilio webhook with a bad or missing signature");
+    return error(403, "Bad signature");
+  }
+  // Empty TwiML now, the reply follows by API, so a slow model can't hit Twilio's 15 s timeout.
+  const msg = twilio.parse(params);
+  if (msg) ctx.waitUntil(handleWhatsapp(env, msg, twilio.sendText));
+  return new Response("<Response/>", { headers: { "Content-Type": "text/xml" } });
+}
+
+type Send = (env: Env, from: string, to: string, body: string) => Promise<void>;
+
+async function handleWhatsapp(env: Env, msg: whatsapp.Incoming, send: Send): Promise<void> {
   try {
     const store = getStore(env);
     if (msg.messageId && !(await store.markSeen(msg.messageId))) return;
@@ -97,7 +119,7 @@ async function handleWhatsapp(env: Env, msg: whatsapp.Incoming): Promise<void> {
       msg.type !== "text" || !msg.text
         ? UNSUPPORTED_REPLY
         : await agent.handleMessage(env, client, `wa:${msg.sender}`, "whatsapp", msg.text.slice(0, 1000), `+${msg.sender}`);
-    await whatsapp.sendText(env, msg.phoneNumberId, msg.sender, reply);
+    await send(env, msg.phoneNumberId, msg.sender, reply);
   } catch (e) {
     console.error(`Failed to handle WhatsApp message ${msg.messageId}: ${e instanceof Error ? e.stack : e}`);
   }
@@ -173,6 +195,8 @@ export default {
           return verifyWebhook(url, env);
         case "POST /webhook":
           return await receiveWebhook(request, env, ctx);
+        case "POST /twilio":
+          return await receiveTwilio(request, env, ctx);
         case "GET /admin/bookings":
           return await adminBookings(request, url, env);
         default:

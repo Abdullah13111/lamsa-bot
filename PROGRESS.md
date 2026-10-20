@@ -7,6 +7,16 @@ Database moved from Neon to Cloudflare D1 (2026-10-20, Neon had no real data): D
 with `npm run db:migrate`. Deployed, the DATABASE_URL secret was deleted, and a live Arabic chat saved
 to D1 (test rows deleted). The Neon project `lamsa-bot` is unused now and can be deleted in the Neon console.
 
+Meta retry 2026-10-20: new app (id 1446637624231173) on portfolio "Abdullahdemo", but it reused the test
+WhatsApp account 1646379573557292 (number +1 555 666 6276), which is LOCKED (error 131031 again).
+Never select that account. The other test account, 4544301289173934, is untried.
+
+Twilio adapter built + deployed 2026-10-20 (POST /twilio, 19 tests pass, unsigned requests get 403).
+Waiting on the user: a 2nd Twilio account (the 1st runs the price-compare bot), then put
+TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN in .dev.vars, `npx wrangler deploy --secrets-file .dev.vars`,
+set the sandbox "When a message comes in" to https://lamsa-bot.lamsa-bot.workers.dev/twilio (POST),
+join the sandbox from the phone, and test.
+
 ## Earlier (2026-10-19)
 
 Rewritten from Python/FastAPI to a Cloudflare Worker in TypeScript (hosting decision 2026-10-19: free

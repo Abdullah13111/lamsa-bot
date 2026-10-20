@@ -6,5 +6,9 @@ WA_VERIFY_TOKEN=any-long-random-string-you-choose
 WA_APP_SECRET=
 WA_ACCESS_TOKEN=
 
+# WhatsApp through Twilio (console.twilio.com > Account info). Sandbox webhook: <worker>/twilio
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+
 # Password for /admin/bookings (any username)
 ADMIN_TOKEN=

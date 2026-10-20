@@ -29,6 +29,11 @@ beforeEach(() => {
   sent = [];
   geminiStatus = 200;
   vi.stubGlobal("fetch", async (input: string, init: RequestInit) => {
+    if (input.includes("api.twilio.com")) {
+      const form = init.body as URLSearchParams;
+      sent.push({ url: input, to: form.get("To")!, body: form.get("Body")! });
+      return Response.json({ sid: "SMout" }, { status: 201 });
+    }
     const body = JSON.parse(String(init.body));
     if (input.includes("generativelanguage.googleapis.com")) {
       if (geminiStatus !== 200) return new Response("quota", { status: geminiStatus });
@@ -211,6 +216,55 @@ describe("whatsapp webhook", () => {
       statuses: [{ id: "wamid.9", status: "read" }] } }] }] };
     expect((await signedPost(makeEnv({ WA_APP_SECRET: "app-secret" }), statusOnly)).status).toBe(200);
     expect(sent).toEqual([]);
+  });
+});
+
+describe("twilio webhook", () => {
+  const form = (extra: Record<string, string> = {}) =>
+    new URLSearchParams({
+      MessageSid: "SM1",
+      From: "whatsapp:+971501234567",
+      To: "whatsapp:+14155238886",
+      Body: "كم سعر الحمام المغربي؟",
+      NumMedia: "0",
+      ...extra,
+    });
+
+  async function signedPost(env: Env, params: URLSearchParams, token = "auth-token") {
+    const url = "https://bot.example/twilio";
+    const data = url + [...params].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => k + v).join("");
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(token), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+    const sig = btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data)))));
+    return call(env, "/twilio", {
+      method: "POST",
+      body: params.toString(),
+      headers: { "X-Twilio-Signature": sig, "Content-Type": "application/x-www-form-urlencoded" },
+    });
+  }
+
+  const twilioEnv = () => makeEnv({ TWILIO_ACCOUNT_SID: "AC1", TWILIO_AUTH_TOKEN: "auth-token" });
+
+  it("replies once per message", async () => {
+    answers.push({ reply: "250 درهم", booking: null });
+    const env = twilioEnv();
+    const res = await signedPost(env, form());
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("<Response/>");
+    expect((await signedPost(env, form())).status).toBe(200); // retry
+    expect(sent).toEqual([{ url: "https://api.twilio.com/2010-04-01/Accounts/AC1/Messages.json", to: "whatsapp:+971501234567", body: "250 درهم" }]);
+    expect(llmCalls[0].system).toContain("+971501234567");
+  });
+
+  it("rejects a bad signature", async () => {
+    expect((await signedPost(twilioEnv(), form(), "wrong")).status).toBe(403);
+    expect((await signedPost(makeEnv(), form())).status).toBe(403); // no auth token set
+    expect(sent).toEqual([]);
+  });
+
+  it("answers media with the text-only note", async () => {
+    await signedPost(twilioEnv(), form({ Body: "", NumMedia: "1" }));
+    expect(llmCalls).toEqual([]);
+    expect(sent[0].body).toContain("text messages");
   });
 });
 
