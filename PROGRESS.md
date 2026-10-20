@@ -47,20 +47,17 @@ Next:
 2. Done 2026-10-19: site widget enabled (lamsa-website 7f3e351), points at https://lamsa-bot.lamsa-bot.workers.dev/chat;
    the user still needs to try it on a phone.
 
-## Tomorrow (2026-10-20) checklist
+## Tomorrow (2026-10-21) checklist
 
-1. User checks that the Lamsa Demo portfolio is gone (deletion was scheduled for 24h on 2026-10-19, and both
-   apps were deleted): https://business.facebook.com/settings/info
-2. Facebook profile name ("Abdullab Ahmex") has no edit option on that account, so either use an older
-   real-name Facebook account, or retry on this one knowing it may be restricted again. 2FA should be on.
-3. New app at developers.facebook.com/apps, WhatsApp use case, new portfolio named after the user (not Lamsa).
-4. Check the test account in WhatsApp Manager BEFORE sending anything:
-   - Not restricted: webhook URL + verify token (both above), subscribe `messages`, user adds WA_APP_SECRET +
-     WA_ACCESS_TOKEN to .dev.vars, then `npx wrangler deploy --secrets-file .dev.vars`, then a phone test.
-   - "Verify your business" again: build the Twilio sandbox adapter (2nd Twilio account).
-5. Later: switch the site's WhatsApp buttons (lamsa-website src/config.ts WHATSAPP_NUMBER, now
-   971543463783) to the bot's number once WhatsApp works. The access token from API Setup expires in
-   24h, so make a permanent system-user token after the test works.
+1. User makes a 2nd Twilio account (twilio.com/try-twilio, a different email from the price-compare one).
+2. User adds TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN (Console > Account Info) to .dev.vars.
+3. User sends the sandbox "join xxx-yyy" code from their phone (Messaging > Try it out > Send a WhatsApp message).
+4. Sandbox settings: "When a message comes in" = https://lamsa-bot.lamsa-bot.workers.dev/twilio, POST, save.
+5. Claude: `npx wrangler deploy --secrets-file .dev.vars`, then the user sends an Arabic booking from the phone;
+   check it on /admin/bookings and in `npx wrangler tail` if nothing comes back.
+6. Later: point the site's WhatsApp buttons (lamsa-website src/config.ts WHATSAPP_NUMBER, now
+   971543463783) at the sandbox number with the join code in the prefilled text, or keep them on the salon number.
+7. Optional: delete the unused Neon project `lamsa-bot`. Meta stays parked (test account 1646379573557292 locked).
 
 ## Notes
 
