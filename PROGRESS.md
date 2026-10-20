@@ -1,6 +1,13 @@
 # Progress
 
-## Resume here (2026-10-19)
+## Resume here (2026-10-20)
+
+Database moved from Neon to Cloudflare D1 (2026-10-20, Neon had no real data): D1 `lamsa-bot`
+(APAC, id dac7e6bb-01d9-4bc9-99d5-29d31633c143, binding `DB`). Tables are in `migrations/`, applied
+with `npm run db:migrate`. Deployed, the DATABASE_URL secret was deleted, and a live Arabic chat saved
+to D1 (test rows deleted). The Neon project `lamsa-bot` is unused now and can be deleted in the Neon console.
+
+## Earlier (2026-10-19)
 
 Rewritten from Python/FastAPI to a Cloudflare Worker in TypeScript (hosting decision 2026-10-19: free
 Worker instead of Railway Hobby $5/mo). The Python version is in git history (commit d23bda9).
@@ -9,12 +16,11 @@ Verified 2026-10-19: 16 offline tests pass, typecheck clean, and `wrangler dev` 
 Gemini ran a full Arabic booking (Moroccan bath, "tomorrow 5pm" → 2026-10-20 17:00) that showed on the
 admin page. Test rows were deleted afterwards.
 
-Done earlier: GitHub repo `Abdullah13111/lamsa-bot`. Neon project `lamsa-bot` (Singapore, pooled URL in
-local `.dev.vars`). Gemini: reuses the Dubai Agent Network key (shared free quota).
+Done earlier: GitHub repo `Abdullah13111/lamsa-bot`. Gemini: reuses the Dubai Agent Network key (shared free quota).
 
 LIVE 2026-10-19 at https://lamsa-bot.lamsa-bot.workers.dev (Cloudflare account abdu.saleh92@hotmail.com).
-Secrets GEMINI_API_KEY, DATABASE_URL, ADMIN_TOKEN uploaded with `npx wrangler deploy --secrets-file .dev.vars`.
-Live check passed: health (postgres), EN + AR chat, CORS for the site, admin 401/200.
+Secrets GEMINI_API_KEY, ADMIN_TOKEN, WA_VERIFY_TOKEN uploaded with `npx wrangler deploy --secrets-file .dev.vars`.
+Live check passed: health, EN + AR chat, CORS for the site, admin 401/200.
 Wrangler registered the account's workers.dev subdomain as `lamsa-bot` on first deploy (changeable in
 the dashboard under Workers > Subdomain; every worker on the account uses it).
 
@@ -50,6 +56,6 @@ Next:
 
 - The old Gemini key in uae-price-compare/start-bot.bat is invalid (401).
 - Gemini 2.5 Flash free tier is ~20 requests/day; the bot steps down to flash-lite models on 429.
-- Workers free plan: 100k requests/day, 10 ms CPU per request (waiting on Gemini/Neon does not count).
+- Workers free plan: 100k requests/day, 10 ms CPU per request (waiting on Gemini/D1 does not count).
 - WhatsApp retries are de-duplicated in the `wa_seen` table (a worker keeps no memory between requests).
 - Testing Arabic with curl from Git Bash mangles it to `????`; use a Node script instead.

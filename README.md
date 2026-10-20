@@ -1,7 +1,7 @@
 # Lamsa bot
 
 AI booking assistant for salons. One Cloudflare Worker answers on **WhatsApp** (Meta Cloud API) and in the
-**website chat widget**, using Gemini. Lamsa Beauty Lounge is the first (fictional) client; its knowledge
+**website chat widget**, using Gemini, with chats and bookings in Cloudflare D1. Lamsa Beauty Lounge is the first (fictional) client; its knowledge
 lives in `clients/lamsa.md`.
 
 ## What it does
@@ -27,12 +27,13 @@ lives in `clients/lamsa.md`.
 ```sh
 npm install
 cp .dev.vars.example .dev.vars   # add GEMINI_API_KEY at least
+npm run db:migrate:local         # creates the tables in a local D1 copy
 npm run dev                      # http://localhost:8787
 npm test
 npm run typecheck
 ```
 
-Without `DATABASE_URL` it stores chats and bookings in memory (lost when the worker restarts).
+`npm run dev` uses a local D1 copy in `.wrangler/`. The tests use an in-memory store instead.
 
 ## Add another salon
 
@@ -45,8 +46,8 @@ Without `DATABASE_URL` it stores chats and bookings in memory (lost when the wor
 
 ```sh
 npx wrangler login
-npx wrangler secret put GEMINI_API_KEY    # repeat for DATABASE_URL, ADMIN_TOKEN, WA_* secrets
-npm run deploy
+npm run db:migrate                        # after adding a file to migrations/
+npx wrangler deploy --secrets-file .dev.vars   # uploads GEMINI_API_KEY, ADMIN_TOKEN, WA_* too
 ```
 
 Plain settings (model, Graph API version, allowed sites) are `vars` in `wrangler.jsonc`. The chat is

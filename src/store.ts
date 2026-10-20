@@ -1,10 +1,10 @@
 /**
  * Conversation history, booking requests and seen WhatsApp message ids.
  *
- * Postgres (Neon, over HTTP) when DATABASE_URL is set; otherwise an in-memory
- * store so the bot runs locally and in tests with no database.
+ * Cloudflare D1 when the DB binding exists; otherwise an in-memory store so the
+ * tests run with no database. Tables come from migrations/ (wrangler d1 migrations apply).
  */
-import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+import type { Env } from "./env";
 import type { Booking } from "./llm";
 
 export const BOOKING_FIELDS = ["name", "phone", "service", "date", "time", "stylist", "notes"] as const;
@@ -24,7 +24,7 @@ export interface BookingRow extends Booking {
 }
 
 export interface Store {
-  kind: "memory" | "postgres";
+  kind: "memory" | "d1";
   addMessage(clientId: string, sessionId: string, channel: string, role: string, content: string): Promise<void>;
   history(clientId: string, sessionId: string, limit: number): Promise<Message[]>;
   /** Customer messages on a channel in the last `minutes`, for all clients. */
@@ -35,40 +35,6 @@ export interface Store {
   /** Records a WhatsApp message id. False if it was already recorded. */
   markSeen(messageId: string): Promise<boolean>;
 }
-
-const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS messages (
-    id BIGSERIAL PRIMARY KEY,
-    client_id TEXT NOT NULL,
-    session_id TEXT NOT NULL,
-    channel TEXT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`,
-  `CREATE INDEX IF NOT EXISTS messages_session_idx ON messages (client_id, session_id, id)`,
-  `CREATE TABLE IF NOT EXISTS bookings (
-    id BIGSERIAL PRIMARY KEY,
-    client_id TEXT NOT NULL,
-    session_id TEXT NOT NULL,
-    channel TEXT NOT NULL,
-    name TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    service TEXT NOT NULL,
-    date TEXT NOT NULL,
-    time TEXT NOT NULL,
-    stylist TEXT,
-    notes TEXT,
-    status TEXT NOT NULL DEFAULT 'new',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`,
-  `CREATE INDEX IF NOT EXISTS bookings_client_idx ON bookings (client_id, created_at DESC)`,
-  // Meta retries webhooks it thinks failed; a worker has no memory between requests.
-  `CREATE TABLE IF NOT EXISTS wa_seen (
-    message_id TEXT PRIMARY KEY,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`,
-];
 
 export class MemoryStore implements Store {
   kind = "memory" as const;
@@ -128,97 +94,86 @@ export class MemoryStore implements Store {
   }
 }
 
-export class PostgresStore implements Store {
-  kind = "postgres" as const;
-  private sql: NeonQueryFunction<false, false>;
-  private ready: Promise<unknown> | null = null;
+export class D1Store implements Store {
+  kind = "d1" as const;
 
-  constructor(url: string) {
-    this.sql = neon(url);
-  }
-
-  /** Creates the tables once per worker instance; retried if it fails. */
-  private async q(text: string, params: unknown[] = []): Promise<any[]> {
-    this.ready ??= this.sql.transaction(SCHEMA.map((s) => this.sql.query(s))).catch((e) => {
-      this.ready = null;
-      throw e;
-    });
-    await this.ready;
-    return this.sql.query(text, params);
-  }
+  constructor(private db: D1Database) {}
 
   async addMessage(clientId: string, sessionId: string, channel: string, role: string, content: string) {
-    await this.q(
-      "INSERT INTO messages (client_id, session_id, channel, role, content) VALUES ($1, $2, $3, $4, $5)",
-      [clientId, sessionId, channel, role, content],
-    );
+    await this.db
+      .prepare("INSERT INTO messages (client_id, session_id, channel, role, content) VALUES (?1, ?2, ?3, ?4, ?5)")
+      .bind(clientId, sessionId, channel, role, content)
+      .run();
   }
 
   async history(clientId: string, sessionId: string, limit: number) {
-    return (await this.q(
-      "SELECT role, content FROM (" +
-        "  SELECT id, role, content FROM messages" +
-        "  WHERE client_id = $1 AND session_id = $2 ORDER BY id DESC LIMIT $3" +
-        ") t ORDER BY id",
-      [clientId, sessionId, limit],
-    )) as Message[];
+    const { results } = await this.db
+      .prepare(
+        "SELECT role, content FROM (" +
+          "  SELECT id, role, content FROM messages" +
+          "  WHERE client_id = ?1 AND session_id = ?2 ORDER BY id DESC LIMIT ?3" +
+          ") ORDER BY id",
+      )
+      .bind(clientId, sessionId, limit)
+      .all<Message>();
+    return results;
   }
 
   async countUserMessages(channel: string, minutes: number) {
-    const rows = await this.q(
-      "SELECT count(*)::int AS n FROM messages " +
-        "WHERE role = 'user' AND channel = $1 AND created_at > now() - make_interval(mins => $2)",
-      [channel, minutes],
-    );
-    return rows[0].n as number;
+    const n = await this.db
+      .prepare(
+        "SELECT count(*) AS n FROM messages WHERE role = 'user' AND channel = ?1 " +
+          "AND created_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ?2 || ' minutes')",
+      )
+      .bind(channel, minutes)
+      .first<number>("n");
+    return n ?? 0;
   }
 
   async addBooking(clientId: string, sessionId: string, channel: string, booking: Booking) {
-    const placeholders = BOOKING_FIELDS.map((_, i) => `$${i + 4}`).join(", ");
-    await this.q(
-      `INSERT INTO bookings (client_id, session_id, channel, ${BOOKING_FIELDS.join(", ")}) ` +
-        `VALUES ($1, $2, $3, ${placeholders})`,
-      [clientId, sessionId, channel, ...BOOKING_FIELDS.map((f) => booking[f] ?? null)],
-    );
+    const placeholders = BOOKING_FIELDS.map((_, i) => `?${i + 4}`).join(", ");
+    await this.db
+      .prepare(
+        `INSERT INTO bookings (client_id, session_id, channel, ${BOOKING_FIELDS.join(", ")}) ` +
+          `VALUES (?1, ?2, ?3, ${placeholders})`,
+      )
+      .bind(clientId, sessionId, channel, ...BOOKING_FIELDS.map((f) => booking[f] ?? null))
+      .run();
   }
 
   async lastBooking(clientId: string, sessionId: string) {
-    const rows = await this.q(
-      "SELECT * FROM bookings WHERE client_id = $1 AND session_id = $2 ORDER BY id DESC LIMIT 1",
-      [clientId, sessionId],
-    );
-    return (rows[0] as BookingRow) ?? null;
+    return this.db
+      .prepare("SELECT * FROM bookings WHERE client_id = ?1 AND session_id = ?2 ORDER BY id DESC LIMIT 1")
+      .bind(clientId, sessionId)
+      .first<BookingRow>();
   }
 
   async listBookings(clientId: string, limit = 200) {
-    return (await this.q("SELECT * FROM bookings WHERE client_id = $1 ORDER BY id DESC LIMIT $2", [
-      clientId,
-      limit,
-    ])) as BookingRow[];
+    const { results } = await this.db
+      .prepare("SELECT * FROM bookings WHERE client_id = ?1 ORDER BY id DESC LIMIT ?2")
+      .bind(clientId, limit)
+      .all<BookingRow>();
+    return results;
   }
 
   async markSeen(messageId: string) {
-    const rows = await this.q(
-      "INSERT INTO wa_seen (message_id) VALUES ($1) ON CONFLICT DO NOTHING RETURNING message_id",
-      [messageId],
-    );
-    return rows.length > 0;
+    const { meta } = await this.db
+      .prepare("INSERT INTO wa_seen (message_id) VALUES (?1) ON CONFLICT DO NOTHING")
+      .bind(messageId)
+      .run();
+    return meta.changes > 0;
   }
 }
 
-// One store per worker instance (and per DATABASE_URL).
-const stores = new Map<string, Store>();
+// Without D1 (tests), one in-memory store per worker instance.
+let memory: MemoryStore | null = null;
 
-export function getStore(databaseUrl = ""): Store {
-  let store = stores.get(databaseUrl);
-  if (!store) {
-    store = databaseUrl ? new PostgresStore(databaseUrl) : new MemoryStore();
-    stores.set(databaseUrl, store);
-  }
-  return store;
+export function getStore(env: Env): Store {
+  if (env.DB) return new D1Store(env.DB);
+  return (memory ??= new MemoryStore());
 }
 
 /** Tests only: forget the in-memory data. */
 export function resetStores() {
-  stores.clear();
+  memory = null;
 }

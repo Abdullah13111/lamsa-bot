@@ -10,12 +10,16 @@
   "ratelimits": [
     { "name": "WEB_LIMITER", "namespace_id": "1001", "simple": { "limit": 6, "period": 60 } }
   ],
+  // Chats, bookings and seen WhatsApp ids. Tables: migrations/ (npm run db:migrate).
+  "d1_databases": [
+    { "binding": "DB", "database_name": "lamsa-bot", "database_id": "dac7e6bb-01d9-4bc9-99d5-29d31633c143" }
+  ],
   "vars": {
     "GEMINI_MODEL": "gemini-2.5-flash",
     "WA_GRAPH_VERSION": "v23.0",
     "WA_CLIENT_ID": "lamsa",
     "CORS_ORIGINS": "https://lamsa-website-theta.vercel.app,http://localhost:4321"
   }
-  // Secrets (wrangler secret put): GEMINI_API_KEY, DATABASE_URL, WA_VERIFY_TOKEN,
+  // Secrets (wrangler secret put): GEMINI_API_KEY, WA_VERIFY_TOKEN,
   // WA_APP_SECRET, WA_ACCESS_TOKEN, ADMIN_TOKEN
 }

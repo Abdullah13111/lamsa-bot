@@ -125,7 +125,7 @@ describe("agent", () => {
     const env = makeEnv();
     await agent.handleMessage(env, lamsa(), "web:s1", "web", "yes confirm");
     await agent.handleMessage(env, lamsa(), "web:s1", "web", "thanks");
-    const rows = await getStore().listBookings("lamsa");
+    const rows = await getStore(env).listBookings("lamsa");
     expect(rows).toHaveLength(1);
     expect(rows[0].service).toBe("Keratin treatment");
   });
@@ -159,8 +159,8 @@ describe("agent", () => {
     expect(llmCalls[2].system).not.toContain("latest message is in");
   });
 
-  it("uses memory storage without DATABASE_URL", () => {
-    expect(getStore()).toBeInstanceOf(MemoryStore);
+  it("uses memory storage without a D1 binding", () => {
+    expect(getStore(makeEnv())).toBeInstanceOf(MemoryStore);
   });
 });
 

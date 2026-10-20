@@ -105,7 +105,7 @@ export async function handleMessage(
   phone: string | null = null,
   now: Date = new Date(),
 ): Promise<string> {
-  const store = getStore(setting(env, "DATABASE_URL"));
+  const store = getStore(env);
   await store.addMessage(client.id, sessionId, channel, "user", text);
   const history = await store.history(client.id, sessionId, HISTORY_LIMIT);
   const contents: llm.Content[] = history.map((m) => ({

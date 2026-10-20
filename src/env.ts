@@ -2,8 +2,8 @@
 export interface Env {
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
-  // Empty = in-memory storage (local dev and tests). Set a Neon URL in production.
-  DATABASE_URL?: string;
+  // D1 database (wrangler.jsonc). Missing = in-memory storage (tests).
+  DB?: D1Database;
   // WhatsApp Cloud API (Meta). One WhatsApp number per deployment for now,
   // answering as WA_CLIENT_ID.
   WA_VERIFY_TOKEN?: string;

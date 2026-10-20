@@ -47,7 +47,7 @@ async function chat(request: Request, env: Env): Promise<Response> {
 
   const ip = request.headers.get("CF-Connecting-IP") ?? "?";
   const perIp = env.WEB_LIMITER ? (await env.WEB_LIMITER.limit({ key: ip })).success : true;
-  const store = getStore(setting(env, "DATABASE_URL"));
+  const store = getStore(env);
   if (!perIp || (await store.countUserMessages("web", 60)) >= WEB_TOTAL_PER_HOUR) {
     return error(429, "Too many messages, please try again in a few minutes", cors);
   }
@@ -85,7 +85,7 @@ async function receiveWebhook(request: Request, env: Env, ctx: ExecutionContext)
 
 async function handleWhatsapp(env: Env, msg: whatsapp.Incoming): Promise<void> {
   try {
-    const store = getStore(setting(env, "DATABASE_URL"));
+    const store = getStore(env);
     if (msg.messageId && !(await store.markSeen(msg.messageId))) return;
     const clientId = setting(env, "WA_CLIENT_ID", "lamsa");
     const client = getClient(clientId);
@@ -127,7 +127,7 @@ async function adminBookings(request: Request, url: URL, env: Env): Promise<Resp
   }
   const client = getClient(url.searchParams.get("client_id") ?? "lamsa");
   if (!client) return error(404, "Unknown client");
-  const rows = await getStore(setting(env, "DATABASE_URL")).listBookings(client.id);
+  const rows = await getStore(env).listBookings(client.id);
   const cols = ["created_at", "channel", "name", "phone", "service", "date", "time", "stylist", "notes", "status"] as const;
 
   const cell = (row: BookingRow, col: (typeof cols)[number]) => {
@@ -164,7 +164,7 @@ export default {
     try {
       switch (route) {
         case "GET /health":
-          return json({ ok: true, store: getStore(setting(env, "DATABASE_URL")).kind });
+          return json({ ok: true, store: getStore(env).kind });
         case "OPTIONS /chat":
           return new Response(null, { status: 204, headers: corsHeaders(env, request) });
         case "POST /chat":
