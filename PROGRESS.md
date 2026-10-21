@@ -14,14 +14,15 @@ If the PC/ngrok is off, the price route answers "offline, send lamsa". .dev.vars
 FIRST account's SID + token (needed to verify signatures and reply). Deployed + live-tested with signed
 requests 2026-10-21 (22 tests pass).
 
-Waiting on the user:
-1. Log in to the price-compare Twilio account > Messaging > Try it out > Send a WhatsApp message >
-   Sandbox settings: "When a message comes in" = https://lamsa-bot.lamsa-bot.workers.dev/twilio (POST), save.
-   (Before it was https://gigolo-excavator-revert.ngrok-free.dev/whatsapp; put that back to undo.)
-2. From the phone joined to that sandbox (rejoin with "join chosen-standard" if it expired), send "lamsa",
-   then an Arabic booking; check /admin/bookings and `npx wrangler tail`.
-3. Later: point the site's WhatsApp buttons at the sandbox, or keep the salon number.
-4. Optional: delete the unused Neon project `lamsa-bot` and the unused 2nd Twilio trial.
+VERIFIED LIVE 2026-10-21 17:13: the user set the old sandbox webhook to the Worker, sent "lamsa" from
++971509949757, and booked over WhatsApp (booking #1, Blow-dry, 2026-10-22 15:00, kept as a demo row).
+
+Next:
+1. Start the price bot (start-bot.bat) and check that a non-lamsa number (or "price") still gets price answers
+   through the Worker. Until then the price route replies "offline, send lamsa".
+2. Later: point the site's WhatsApp buttons at the sandbox, or keep the salon number.
+3. Optional: delete the unused Neon project `lamsa-bot` and the unused 2nd Twilio trial (AC915116...).
+4. Rotate the Twilio auth tokens (both were pasted in chat), then update .dev.vars + start-bot.bat and redeploy.
 
 ## Earlier (2026-10-20)
 
