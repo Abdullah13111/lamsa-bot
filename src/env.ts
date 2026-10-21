@@ -14,6 +14,8 @@ export interface Env {
   // WhatsApp through Twilio (sandbox), webhook /twilio. Also answers as WA_CLIENT_ID.
   TWILIO_ACCOUNT_SID?: string;
   TWILIO_AUTH_TOKEN?: string;
+  // Our WhatsApp number on Twilio ("whatsapp:+14155238886"), for messages the admin page sends.
+  TWILIO_WHATSAPP_FROM?: string;
   // Shared sandbox: webhook of the other bot on the same Twilio account. When set, numbers
   // go there unless they send "lamsa" (and "price" sends them back). Empty = all Lamsa.
   TWILIO_FORWARD_URL?: string;

@@ -32,6 +32,8 @@ export interface Store {
   addBooking(clientId: string, sessionId: string, channel: string, booking: Booking): Promise<void>;
   lastBooking(clientId: string, sessionId: string): Promise<BookingRow | null>;
   listBookings(clientId: string, limit?: number): Promise<BookingRow[]>;
+  /** Admin confirm/cancel. The updated row, or null if the booking doesn't exist. */
+  setBookingStatus(clientId: string, id: number, status: string): Promise<BookingRow | null>;
   /** Records a WhatsApp message id. False if it was already recorded. */
   markSeen(messageId: string): Promise<boolean>;
   /** Shared Twilio sandbox: the bot a WhatsApp number picked, or null if it never picked. */
@@ -89,6 +91,13 @@ export class MemoryStore implements Store {
 
   async listBookings(clientId: string, limit = 200) {
     return this.bookings.filter((r) => r.client_id === clientId).reverse().slice(0, limit);
+  }
+
+  async setBookingStatus(clientId: string, id: number, status: string) {
+    const row = this.bookings.find((r) => r.client_id === clientId && r.id === id);
+    if (!row) return null;
+    row.status = status;
+    return row;
   }
 
   async markSeen(messageId: string) {
@@ -166,6 +175,13 @@ export class D1Store implements Store {
       .bind(clientId, limit)
       .all<BookingRow>();
     return results;
+  }
+
+  async setBookingStatus(clientId: string, id: number, status: string) {
+    return this.db
+      .prepare("UPDATE bookings SET status = ?3 WHERE client_id = ?1 AND id = ?2 RETURNING *")
+      .bind(clientId, id, status)
+      .first<BookingRow>();
   }
 
   async markSeen(messageId: string) {

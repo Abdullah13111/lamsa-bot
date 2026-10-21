@@ -1,6 +1,6 @@
 /** HTTP entry points: web chat, WhatsApp webhooks (Meta, Twilio), bookings admin page. */
 import * as agent from "./agent";
-import { getClient } from "./clients";
+import { type Client, getClient } from "./clients";
 import { type Env, setting } from "./env";
 import { getStore, type BookingRow } from "./store";
 import * as twilio from "./twilio";
@@ -124,7 +124,7 @@ async function receiveTwilio(request: Request, env: Env, ctx: ExecutionContext):
   return twilio.twiml();
 }
 
-type Send = (env: Env, from: string, to: string, body: string) => Promise<void>;
+type Send = (env: Env, from: string, to: string, body: string) => Promise<unknown>;
 
 async function handleWhatsapp(env: Env, msg: whatsapp.Incoming, send: Send): Promise<void> {
   try {
@@ -161,13 +161,73 @@ function adminPassword(request: Request): string | null {
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#x27;" })[c]!);
 
-async function adminBookings(request: Request, url: URL, env: Env): Promise<Response> {
+/** An error response unless the request has the admin password. */
+function adminDenied(request: Request, env: Env): Response | null {
   const token = setting(env, "ADMIN_TOKEN");
   if (!token) return error(404, "Not Found");
   const password = adminPassword(request);
   if (password === null || !whatsapp.safeEqual(password, token)) {
     return error(401, "Not authenticated", { "WWW-Authenticate": "Basic" });
   }
+  return null;
+}
+
+const BOOKING_ACTIONS: Record<string, string> = { confirmed: "Confirm", cancelled: "Cancel" };
+
+function bookingUpdateText(client: Client, row: BookingRow): string {
+  const day = (locale: string) =>
+    new Date(`${row.date}T00:00:00Z`).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  const when = { ar: `${day("ar-AE")} الساعة ${row.time}`, en: `${day("en-GB")} at ${row.time}` };
+  if (row.status === "confirmed") {
+    return (
+      `✅ ${client.name}\n` +
+      `تم تأكيد موعدك: ${row.service}، ${when.ar}. نشوفك قريب 💜\n` +
+      `Your appointment is confirmed: ${row.service}, ${when.en}. See you soon!`
+    );
+  }
+  return (
+    `${client.name}\n` +
+    `نعتذر، ما قدرنا نثبّت موعدك (${row.service}، ${when.ar}). ردّي على هالرسالة ونرتب لك وقت ثاني.\n` +
+    `Sorry, we couldn't keep your appointment (${row.service}, ${when.en}). Reply here and we'll find another time.`
+  );
+}
+
+/** Tells the customer about a confirm/cancel. Returns a note for the admin page. */
+async function notifyCustomer(env: Env, client: Client, row: BookingRow): Promise<string> {
+  if (!row.session_id.startsWith("wa:")) return `Not messaged: booked on ${row.channel}. Call ${row.phone}.`;
+  const from = setting(env, "TWILIO_WHATSAPP_FROM");
+  if (!from || !setting(env, "TWILIO_AUTH_TOKEN")) return `Not messaged: Twilio WhatsApp isn't set up. Call ${row.phone}.`;
+  const text = bookingUpdateText(client, row);
+  if (!(await twilio.sendText(env, from, row.session_id.slice(3), text))) {
+    return `WhatsApp message failed (over 24 h since their last message?). Call ${row.phone}.`;
+  }
+  // So the bot knows what the customer is replying to.
+  await getStore(env).addMessage(client.id, row.session_id, "whatsapp", "assistant", text);
+  return "Customer told on WhatsApp.";
+}
+
+async function updateBooking(request: Request, url: URL, env: Env): Promise<Response> {
+  const denied = adminDenied(request, env);
+  if (denied) return denied;
+  // A browser sends saved Basic credentials with any site's form post, so only accept our own page.
+  if (request.headers.get("Origin") !== url.origin) return error(403, "Bad origin");
+  const form = await request.formData();
+  const client = getClient(String(form.get("client_id") ?? "lamsa"));
+  const status = String(form.get("status") ?? "");
+  const id = Number(form.get("id"));
+  if (!client || !(status in BOOKING_ACTIONS) || !Number.isInteger(id)) return error(422, "Invalid request");
+  const row = await getStore(env).setBookingStatus(client.id, id, status);
+  if (!row) return error(404, "Unknown booking");
+  const note = `Booking ${id} ${status}. ${await notifyCustomer(env, client, row)}`;
+  const back = new URL("/admin/bookings", url);
+  back.searchParams.set("client_id", client.id);
+  back.searchParams.set("note", note);
+  return Response.redirect(back.toString(), 303);
+}
+
+async function adminBookings(request: Request, url: URL, env: Env): Promise<Response> {
+  const denied = adminDenied(request, env);
+  if (denied) return denied;
   const client = getClient(url.searchParams.get("client_id") ?? "lamsa");
   if (!client) return error(404, "Unknown client");
   const rows = await getStore(env).listBookings(client.id);
@@ -182,8 +242,23 @@ async function adminBookings(request: Request, url: URL, env: Env): Promise<Resp
     return `<td>${escapeHtml(String(value ?? ""))}</td>`;
   };
 
-  const bodyRows = rows.map((r) => "<tr>" + cols.map((c) => cell(r, c)).join("") + "</tr>").join("");
+  const actions = (row: BookingRow) =>
+    "<td>" +
+    Object.entries(BOOKING_ACTIONS)
+      .filter(([status]) => status !== row.status)
+      .map(
+        ([status, label]) =>
+          `<form method="post" action="/admin/bookings/status"><input type="hidden" name="client_id" value="${escapeHtml(client.id)}">` +
+          `<input type="hidden" name="id" value="${row.id}"><input type="hidden" name="status" value="${status}">` +
+          `<button class="${status}">${label}</button></form>`,
+      )
+      .join("") +
+    "</td>";
+
+  const bodyRows = rows.map((r) => "<tr>" + cols.map((c) => cell(r, c)).join("") + actions(r) + "</tr>").join("");
   const empty = rows.length ? "" : "<p>No booking requests yet.</p>";
+  const note = url.searchParams.get("note");
+  const banner = note ? `<p class="note">${escapeHtml(note)}</p>` : "";
   const name = escapeHtml(client.name);
   const page = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -193,9 +268,12 @@ body{font-family:system-ui,sans-serif;margin:16px;color:#2B2326;background:#FBF7
 table{border-collapse:collapse;width:100%;font-size:14px;background:#fff}
 th,td{border:1px solid #e6dcd6;padding:6px 8px;text-align:start;vertical-align:top}
 th{background:#7A4E5A;color:#fff} .wrap{overflow-x:auto}
+form{display:inline} button{margin:2px;padding:4px 10px;border:0;border-radius:4px;color:#fff;cursor:pointer}
+.confirmed{background:#2E7D4F} .cancelled{background:#A33A3A}
+.note{background:#fff;border-inline-start:4px solid #7A4E5A;padding:8px 12px}
 </style></head><body>
-<h1>${name}: booking requests (${rows.length})</h1>${empty}
-<div class="wrap"><table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
+<h1>${name}: booking requests (${rows.length})</h1>${banner}${empty}
+<div class="wrap"><table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}<th></th></tr></thead>
 <tbody>${bodyRows}</tbody></table></div></body></html>`;
   return new Response(page, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
@@ -220,6 +298,8 @@ export default {
           return await receiveTwilio(request, env, ctx);
         case "GET /admin/bookings":
           return await adminBookings(request, url, env);
+        case "POST /admin/bookings/status":
+          return await updateBooking(request, url, env);
         default:
           return error(404, "Not Found");
       }

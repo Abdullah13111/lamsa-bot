@@ -317,3 +317,48 @@ it("shows bookings on the admin page", async () => {
   expect(html).toContain("Mariam");
   expect(html).toContain("Keratin treatment");
 });
+
+describe("admin confirm/cancel", () => {
+  const auth = { Authorization: `Basic ${btoa("admin:pw")}` };
+  const adminEnv = () =>
+    makeEnv({ ADMIN_TOKEN: "pw", TWILIO_ACCOUNT_SID: "AC1", TWILIO_AUTH_TOKEN: "auth-token", TWILIO_WHATSAPP_FROM: "whatsapp:+14155238886" });
+  const post = (env: Env, status: string, headers: Record<string, string> = { ...auth, Origin: "https://bot.example" }) =>
+    call(env, "/admin/bookings/status", {
+      method: "POST",
+      body: new URLSearchParams({ client_id: "lamsa", id: "1", status }),
+      headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+    });
+
+  it("confirms a WhatsApp booking and tells the customer", async () => {
+    const env = adminEnv();
+    answers.push({ reply: "Done", booking: { ...BOOKING } });
+    await agent.handleMessage(env, lamsa(), "wa:971501234567", "whatsapp", "confirm", "+971501234567");
+    const res = await post(env, "confirmed");
+    expect(res.status).toBe(303);
+    expect(new URL(res.headers.get("Location")!).searchParams.get("note")).toContain("told on WhatsApp");
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toBe("whatsapp:+971501234567");
+    expect(sent[0].body).toContain("confirmed: Keratin treatment, Tuesday 20 October at 16:00");
+    expect((await getStore(env).listBookings("lamsa"))[0].status).toBe("confirmed");
+    const history = await getStore(env).history("lamsa", "wa:971501234567", 10);
+    expect(history.at(-1)!.content).toBe(sent[0].body);
+  });
+
+  it("cancels a web booking without messaging", async () => {
+    const env = adminEnv();
+    answers.push({ reply: "Done", booking: { ...BOOKING } });
+    await agent.handleMessage(env, lamsa(), "web:s1", "web", "confirm");
+    const res = await post(env, "cancelled");
+    expect(new URL(res.headers.get("Location")!).searchParams.get("note")).toContain("Call 0501234567");
+    expect(sent).toEqual([]);
+    expect((await getStore(env).listBookings("lamsa"))[0].status).toBe("cancelled");
+  });
+
+  it("needs the password and our own page", async () => {
+    const env = adminEnv();
+    expect((await post(env, "confirmed", { Origin: "https://bot.example" })).status).toBe(401);
+    expect((await post(env, "confirmed", { ...auth, Origin: "https://evil.example" })).status).toBe(403);
+    expect((await post(env, "deleted")).status).toBe(422);
+    expect((await post(env, "confirmed")).status).toBe(404); // no booking 1 yet
+  });
+});

@@ -72,7 +72,8 @@ export async function forward(url: string, params: URLSearchParams, offline: str
   return twiml(offline);
 }
 
-export async function sendText(env: Env, from: string, to: string, body: string): Promise<void> {
+/** False when Twilio refuses, e.g. more than 24 h since the customer's last message. */
+export async function sendText(env: Env, from: string, to: string, body: string): Promise<boolean> {
   const sid = setting(env, "TWILIO_ACCOUNT_SID");
   const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
     method: "POST",
@@ -83,5 +84,7 @@ export async function sendText(env: Env, from: string, to: string, body: string)
     body: new URLSearchParams({ From: from, To: `whatsapp:+${to}`, Body: body.slice(0, 1600) }),
     signal: AbortSignal.timeout(15_000),
   });
-  if (r.status >= 400) console.error(`Twilio send failed: HTTP ${r.status} ${(await r.text()).slice(0, 500)}`);
+  if (r.status < 400) return true;
+  console.error(`Twilio send failed: HTTP ${r.status} ${(await r.text()).slice(0, 500)}`);
+  return false;
 }

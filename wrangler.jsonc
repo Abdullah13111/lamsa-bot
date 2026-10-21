@@ -18,6 +18,8 @@
     "GEMINI_MODEL": "gemini-2.5-flash",
     "WA_GRAPH_VERSION": "v23.0",
     "WA_CLIENT_ID": "lamsa",
+    // Twilio sandbox number; the admin page sends confirm/cancel messages from it.
+    "TWILIO_WHATSAPP_FROM": "whatsapp:+14155238886",
     "CORS_ORIGINS": "https://lamsa-website-theta.vercel.app,http://localhost:4321"
   }
   // Secrets (wrangler secret put): GEMINI_API_KEY, WA_VERIFY_TOKEN,
