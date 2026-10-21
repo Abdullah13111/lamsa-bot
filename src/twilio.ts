@@ -33,6 +33,45 @@ export function parse(params: URLSearchParams): Incoming | null {
   };
 }
 
+const LAMSA_WORDS = ["lamsa", "لمسة", "لمسه"];
+const FORWARD_WORDS = ["price", "prices", "أسعار", "اسعار"];
+
+/** Shared sandbox: a message that is only a switch word picks the bot ("lamsa" / "forward"). */
+export function routeCommand(text: string): "lamsa" | "forward" | null {
+  const word = text.trim().toLowerCase().replace(/[.!*]+$/, "");
+  if (LAMSA_WORDS.includes(word)) return "lamsa";
+  if (FORWARD_WORDS.includes(word)) return "forward";
+  return null;
+}
+
+const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** TwiML answer to a webhook: an instant reply, or nothing. */
+export function twiml(message?: string): Response {
+  const body = message ? `<Response><Message>${escapeXml(message)}</Message></Response>` : "<Response/>";
+  return new Response(body, { headers: { "Content-Type": "text/xml" } });
+}
+
+/**
+ * Passes the webhook on to the other bot and returns its TwiML. `offline` is sent instead
+ * when it doesn't answer (e.g. the PC running it is off).
+ */
+export async function forward(url: string, params: URLSearchParams, offline: string): Promise<Response> {
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "ngrok-skip-browser-warning": "1" },
+      body: params,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (r.ok) return new Response(await r.text(), { headers: { "Content-Type": "text/xml" } });
+    console.warn(`Forward to ${url} failed: HTTP ${r.status}`);
+  } catch (e) {
+    console.warn(`Forward to ${url} failed: ${e}`);
+  }
+  return twiml(offline);
+}
+
 export async function sendText(env: Env, from: string, to: string, body: string): Promise<void> {
   const sid = setting(env, "TWILIO_ACCOUNT_SID");
   const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {

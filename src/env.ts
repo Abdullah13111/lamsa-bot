@@ -14,6 +14,9 @@ export interface Env {
   // WhatsApp through Twilio (sandbox), webhook /twilio. Also answers as WA_CLIENT_ID.
   TWILIO_ACCOUNT_SID?: string;
   TWILIO_AUTH_TOKEN?: string;
+  // Shared sandbox: webhook of the other bot on the same Twilio account. When set, numbers
+  // go there unless they send "lamsa" (and "price" sends them back). Empty = all Lamsa.
+  TWILIO_FORWARD_URL?: string;
   // Comma-separated sites allowed to call /chat.
   CORS_ORIGINS?: string;
   // Password for /admin/bookings (any username). Empty = admin page disabled.

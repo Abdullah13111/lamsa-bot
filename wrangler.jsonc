@@ -21,5 +21,6 @@
     "CORS_ORIGINS": "https://lamsa-website-theta.vercel.app,http://localhost:4321"
   }
   // Secrets (wrangler secret put): GEMINI_API_KEY, WA_VERIFY_TOKEN,
-  // WA_APP_SECRET, WA_ACCESS_TOKEN, ADMIN_TOKEN
+  // WA_APP_SECRET, WA_ACCESS_TOKEN, ADMIN_TOKEN,
+  // TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FORWARD_URL
 }

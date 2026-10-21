@@ -21,6 +21,8 @@ let llmCalls: { system: string; contents: llm.Content[] }[];
 let answers: unknown[];
 let sent: { url: string; to: string; body: string }[];
 let geminiStatus: number;
+let forwarded: URLSearchParams[];
+let forwardUp: boolean;
 
 beforeEach(() => {
   resetStores();
@@ -28,7 +30,14 @@ beforeEach(() => {
   answers = [];
   sent = [];
   geminiStatus = 200;
+  forwarded = [];
+  forwardUp = true;
   vi.stubGlobal("fetch", async (input: string, init: RequestInit) => {
+    if (input === "https://price.example/whatsapp") {
+      forwarded.push(init.body as URLSearchParams);
+      if (!forwardUp) return new Response("ERR_NGROK_3200", { status: 404 });
+      return new Response("<Response><Message>Comparing prices</Message></Response>");
+    }
     if (input.includes("api.twilio.com")) {
       const form = init.body as URLSearchParams;
       sent.push({ url: input, to: form.get("To")!, body: form.get("Body")! });
@@ -265,6 +274,34 @@ describe("twilio webhook", () => {
     await signedPost(twilioEnv(), form({ Body: "", NumMedia: "1" }));
     expect(llmCalls).toEqual([]);
     expect(sent[0].body).toContain("text messages");
+  });
+
+  describe("shared sandbox", () => {
+    const sharedEnv = () => makeEnv({ TWILIO_ACCOUNT_SID: "AC1", TWILIO_AUTH_TOKEN: "auth-token", TWILIO_FORWARD_URL: "https://price.example/whatsapp" });
+
+    it("forwards numbers that never picked Lamsa", async () => {
+      const res = await signedPost(sharedEnv(), form({ Body: "iphone 16" }));
+      expect(await res.text()).toBe("<Response><Message>Comparing prices</Message></Response>");
+      expect(forwarded[0].get("Body")).toBe("iphone 16");
+      expect(llmCalls).toEqual([]);
+    });
+
+    it("switches with lamsa and price", async () => {
+      const env = sharedEnv();
+      expect(await (await signedPost(env, form({ MessageSid: "SM1", Body: "لمسة" }))).text()).toContain("Lamsa");
+      answers.push({ reply: "250 درهم", booking: null });
+      expect(await (await signedPost(env, form({ MessageSid: "SM2" }))).text()).toBe("<Response/>");
+      expect(sent.map((s) => s.body)).toEqual(["250 درهم"]);
+      expect(await (await signedPost(env, form({ MessageSid: "SM3", Body: "Price" }))).text()).toContain("price-compare");
+      await signedPost(env, form({ MessageSid: "SM4", Body: "iphone 16" }));
+      expect(forwarded.map((f) => f.get("Body"))).toEqual(["iphone 16"]);
+    });
+
+    it("says so when the other bot is offline", async () => {
+      forwardUp = false;
+      const res = await signedPost(sharedEnv(), form({ Body: "iphone 16" }));
+      expect(await res.text()).toContain("offline");
+    });
   });
 });
 

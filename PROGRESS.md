@@ -1,6 +1,29 @@
 # Progress
 
-## Resume here (2026-10-20)
+## Resume here (2026-10-21)
+
+WhatsApp now runs on the price-compare bot's Twilio sandbox (shared; first Twilio account, created
+2026-07-05, classic sandbox +1 415 523 8886, join code "join chosen-standard"). A 2nd Twilio trial made
+2026-10-21 got Twilio's NEW "Try out WhatsApp" (+1 737 250 8034, "join twilio-trial") which has NO
+webhook setting without upgrading, so it is unused.
+
+How it works: the sandbox webhook points at the Worker (/twilio). Numbers go to the price bot
+(TWILIO_FORWARD_URL = the ngrok /whatsapp URL, forwarded and its TwiML returned) unless they send
+"lamsa"/"لمسة"; "price"/"أسعار" switches back. Choices live in D1 `wa_routes` (migration 0002).
+If the PC/ngrok is off, the price route answers "offline, send lamsa". .dev.vars TWILIO_* now hold the
+FIRST account's SID + token (needed to verify signatures and reply). Deployed + live-tested with signed
+requests 2026-10-21 (22 tests pass).
+
+Waiting on the user:
+1. Log in to the price-compare Twilio account > Messaging > Try it out > Send a WhatsApp message >
+   Sandbox settings: "When a message comes in" = https://lamsa-bot.lamsa-bot.workers.dev/twilio (POST), save.
+   (Before it was https://gigolo-excavator-revert.ngrok-free.dev/whatsapp; put that back to undo.)
+2. From the phone joined to that sandbox (rejoin with "join chosen-standard" if it expired), send "lamsa",
+   then an Arabic booking; check /admin/bookings and `npx wrangler tail`.
+3. Later: point the site's WhatsApp buttons at the sandbox, or keep the salon number.
+4. Optional: delete the unused Neon project `lamsa-bot` and the unused 2nd Twilio trial.
+
+## Earlier (2026-10-20)
 
 Database moved from Neon to Cloudflare D1 (2026-10-20, Neon had no real data): D1 `lamsa-bot`
 (APAC, id dac7e6bb-01d9-4bc9-99d5-29d31633c143, binding `DB`). Tables are in `migrations/`, applied
@@ -46,18 +69,6 @@ Next:
    account; the first one runs the price-compare bot).
 2. Done 2026-10-19: site widget enabled (lamsa-website 7f3e351), points at https://lamsa-bot.lamsa-bot.workers.dev/chat;
    the user still needs to try it on a phone.
-
-## Tomorrow (2026-10-21) checklist
-
-1. User makes a 2nd Twilio account (twilio.com/try-twilio, a different email from the price-compare one).
-2. User adds TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN (Console > Account Info) to .dev.vars.
-3. User sends the sandbox "join xxx-yyy" code from their phone (Messaging > Try it out > Send a WhatsApp message).
-4. Sandbox settings: "When a message comes in" = https://lamsa-bot.lamsa-bot.workers.dev/twilio, POST, save.
-5. Claude: `npx wrangler deploy --secrets-file .dev.vars`, then the user sends an Arabic booking from the phone;
-   check it on /admin/bookings and in `npx wrangler tail` if nothing comes back.
-6. Later: point the site's WhatsApp buttons (lamsa-website src/config.ts WHATSAPP_NUMBER, now
-   971543463783) at the sandbox number with the join code in the prefilled text, or keep them on the salon number.
-7. Optional: delete the unused Neon project `lamsa-bot`. Meta stays parked (test account 1646379573557292 locked).
 
 ## Notes
 

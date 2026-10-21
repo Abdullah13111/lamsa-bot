@@ -13,6 +13,17 @@ const UNSUPPORTED_REPLY =
   "أقدر أقرأ الرسائل النصية بس حالياً، اكتبي لي سؤالك لو سمحتي.\n" +
   "I can only read text messages for now. Please type your question.";
 
+// Shared Twilio sandbox (TWILIO_FORWARD_URL): replies to the switch words.
+const LAMSA_WELCOME =
+  "أهلاً بك في لمسة 💜 اسألي عن الخدمات والأسعار أو احجزي موعدك.\n" +
+  "Welcome to Lamsa Beauty Lounge 💜 Ask about services and prices, or book an appointment.\n\n" +
+  "(Send *price* to go back to the price-compare bot.)";
+const FORWARD_WELCOME =
+  "Back to the price-compare bot. Send a product name or an Amazon.ae/Noon link.\n" +
+  "(Send *lamsa* for the salon bot.)";
+const FORWARD_OFFLINE =
+  "The price-compare bot is offline right now. Send *lamsa* to try the Lamsa salon bot.";
+
 const json = (data: unknown, status = 200, headers: HeadersInit = {}) =>
   Response.json(data, { status, headers });
 const error = (status: number, detail: string, headers: HeadersInit = {}) => json({ detail }, status, headers);
@@ -97,10 +108,20 @@ async function receiveTwilio(request: Request, env: Env, ctx: ExecutionContext):
     console.warn("Rejected Twilio webhook with a bad or missing signature");
     return error(403, "Bad signature");
   }
-  // Empty TwiML now, the reply follows by API, so a slow model can't hit Twilio's 15 s timeout.
   const msg = twilio.parse(params);
+  const forwardUrl = setting(env, "TWILIO_FORWARD_URL");
+  if (msg && forwardUrl) {
+    const store = getStore(env);
+    const command = twilio.routeCommand(msg.text);
+    if (command) {
+      await store.setRoute(msg.sender, command);
+      return twilio.twiml(command === "lamsa" ? LAMSA_WELCOME : FORWARD_WELCOME);
+    }
+    if ((await store.getRoute(msg.sender)) !== "lamsa") return twilio.forward(forwardUrl, params, FORWARD_OFFLINE);
+  }
+  // Empty TwiML now, the reply follows by API, so a slow model can't hit Twilio's 15 s timeout.
   if (msg) ctx.waitUntil(handleWhatsapp(env, msg, twilio.sendText));
-  return new Response("<Response/>", { headers: { "Content-Type": "text/xml" } });
+  return twilio.twiml();
 }
 
 type Send = (env: Env, from: string, to: string, body: string) => Promise<void>;

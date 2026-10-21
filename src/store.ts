@@ -34,6 +34,9 @@ export interface Store {
   listBookings(clientId: string, limit?: number): Promise<BookingRow[]>;
   /** Records a WhatsApp message id. False if it was already recorded. */
   markSeen(messageId: string): Promise<boolean>;
+  /** Shared Twilio sandbox: the bot a WhatsApp number picked, or null if it never picked. */
+  getRoute(sender: string): Promise<string | null>;
+  setRoute(sender: string, bot: string): Promise<void>;
 }
 
 export class MemoryStore implements Store {
@@ -41,6 +44,7 @@ export class MemoryStore implements Store {
   private messages = new Map<string, (Message & { channel: string; at: number })[]>();
   private bookings: BookingRow[] = [];
   private seen = new Set<string>();
+  private routes = new Map<string, string>();
 
   async addMessage(clientId: string, sessionId: string, channel: string, role: string, content: string) {
     const key = `${clientId}\n${sessionId}`;
@@ -91,6 +95,14 @@ export class MemoryStore implements Store {
     if (this.seen.has(messageId)) return false;
     this.seen.add(messageId);
     return true;
+  }
+
+  async getRoute(sender: string) {
+    return this.routes.get(sender) ?? null;
+  }
+
+  async setRoute(sender: string, bot: string) {
+    this.routes.set(sender, bot);
   }
 }
 
@@ -162,6 +174,20 @@ export class D1Store implements Store {
       .bind(messageId)
       .run();
     return meta.changes > 0;
+  }
+
+  async getRoute(sender: string) {
+    return this.db.prepare("SELECT bot FROM wa_routes WHERE sender = ?1").bind(sender).first<string>("bot");
+  }
+
+  async setRoute(sender: string, bot: string) {
+    await this.db
+      .prepare(
+        "INSERT INTO wa_routes (sender, bot) VALUES (?1, ?2) " +
+          "ON CONFLICT (sender) DO UPDATE SET bot = ?2, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')",
+      )
+      .bind(sender, bot)
+      .run();
   }
 }
 
