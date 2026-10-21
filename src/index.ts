@@ -202,7 +202,7 @@ async function notifyCustomer(env: Env, client: Client, row: BookingRow): Promis
     return `WhatsApp message failed (over 24 h since their last message?). Call ${row.phone}.`;
   }
   // So the bot knows what the customer is replying to.
-  await getStore(env).addMessage(client.id, row.session_id, "whatsapp", "assistant", text);
+  await getStore(env).addMessage(client.id, row.session_id, "whatsapp", "model", text);
   return "Customer told on WhatsApp.";
 }
 

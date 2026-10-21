@@ -23,6 +23,7 @@ let sent: { url: string; to: string; body: string }[];
 let geminiStatus: number;
 let forwarded: URLSearchParams[];
 let forwardUp: boolean;
+let alerts: { url: string; chat_id: string; text: string }[];
 
 beforeEach(() => {
   resetStores();
@@ -32,6 +33,7 @@ beforeEach(() => {
   geminiStatus = 200;
   forwarded = [];
   forwardUp = true;
+  alerts = [];
   vi.stubGlobal("fetch", async (input: string, init: RequestInit) => {
     if (input === "https://price.example/whatsapp") {
       forwarded.push(init.body as URLSearchParams);
@@ -49,6 +51,10 @@ beforeEach(() => {
       llmCalls.push({ system: body.systemInstruction.parts[0].text, contents: body.contents });
       const answer = answers.length ? answers.shift() : { reply: "Hello!", booking: null };
       return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(answer) }] } }] });
+    }
+    if (input.includes("api.telegram.org")) {
+      alerts.push({ url: input, chat_id: body.chat_id, text: body.text });
+      return Response.json({ ok: true });
     }
     if (input.includes("graph.facebook.com")) {
       sent.push({ url: input, to: body.to, body: body.text.body });
@@ -316,6 +322,31 @@ it("shows bookings on the admin page", async () => {
   const html = await page.text();
   expect(html).toContain("Mariam");
   expect(html).toContain("Keratin treatment");
+});
+
+it("alerts the owner on Telegram once per new booking", async () => {
+  const env = makeEnv({ TELEGRAM_BOT_TOKEN: "123:abc", TELEGRAM_CHAT_ID: "42", PUBLIC_URL: "https://bot.example" });
+  answers.push({ reply: "Done", booking: { ...BOOKING } }, { reply: "Done again", booking: { ...BOOKING } });
+  await agent.handleMessage(env, lamsa(), "wa:971501234567", "whatsapp", "confirm", "+971501234567");
+  await agent.handleMessage(env, lamsa(), "wa:971501234567", "whatsapp", "thanks", "+971501234567"); // repeated booking
+  expect(alerts).toHaveLength(1);
+  expect(alerts[0].url).toBe("https://api.telegram.org/bot123:abc/sendMessage");
+  expect(alerts[0].chat_id).toBe("42");
+  expect(alerts[0].text).toContain("Mariam · +971501234567");
+  expect(alerts[0].text).toContain("Keratin treatment with Rania");
+  expect(alerts[0].text).toContain("Tue 20 Oct 16:00 · via WhatsApp");
+  expect(alerts[0].text).toContain("https://bot.example/admin/bookings?client_id=lamsa");
+});
+
+it("keeps the reply when the Telegram alert fails", async () => {
+  vi.stubGlobal("fetch", async (input: string) => {
+    if (input.includes("api.telegram.org")) throw new Error("network down");
+    const answer = { reply: "Booked!", booking: { ...BOOKING } };
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(answer) }] } }] });
+  });
+  const env = makeEnv({ TELEGRAM_BOT_TOKEN: "123:abc", TELEGRAM_CHAT_ID: "42" });
+  expect(await agent.handleMessage(env, lamsa(), "web:s9", "web", "confirm")).toBe("Booked!");
+  expect(await getStore(env).listBookings("lamsa")).toHaveLength(1);
 });
 
 describe("admin confirm/cancel", () => {

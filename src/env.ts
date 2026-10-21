@@ -21,6 +21,11 @@ export interface Env {
   TWILIO_FORWARD_URL?: string;
   // Comma-separated sites allowed to call /chat.
   CORS_ORIGINS?: string;
+  // New-booking alerts to the owner's Telegram. Either missing = no alerts.
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_CHAT_ID?: string;
+  // This worker's address, for the admin link in alerts.
+  PUBLIC_URL?: string;
   // Password for /admin/bookings (any username). Empty = admin page disabled.
   ADMIN_TOKEN?: string;
   WEB_LIMITER?: RateLimit;

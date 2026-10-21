@@ -3,6 +3,7 @@ import type { Client } from "./clients";
 import { type Env, setting } from "./env";
 import * as llm from "./llm";
 import { getStore, type BookingRow } from "./store";
+import * as telegram from "./telegram";
 
 // The UAE has no daylight saving, so a fixed offset is exact.
 export const UAE_OFFSET_MS = 4 * 3600_000;
@@ -135,10 +136,29 @@ export async function handleMessage(
     if (!sameBooking(await store.lastBooking(client.id, sessionId), booking)) {
       await store.addBooking(client.id, sessionId, channel, booking);
       console.log(`Booking request saved for ${client.id}: ${booking.service}`);
+      await telegram.notifyOwner(env, bookingAlert(env, client, channel, booking));
     }
   }
   await store.addMessage(client.id, sessionId, channel, "model", reply);
   return reply;
+}
+
+/** Owner's Telegram alert for a new booking request. */
+export function bookingAlert(env: Env, client: Client, channel: string, b: llm.Booking): string {
+  const day = new Date(`${b.date}T00:00:00Z`);
+  const date = Number.isNaN(day.getTime())
+    ? b.date
+    : day.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const lines = [
+    `🆕 New booking · ${client.name}`,
+    `${b.name} · ${b.phone}`,
+    b.stylist ? `${b.service} with ${b.stylist}` : b.service,
+    `${date} ${b.time} · via ${CHANNEL_NAMES[channel] ?? channel}`,
+  ];
+  if (b.notes) lines.push(`Notes: ${b.notes}`);
+  const site = setting(env, "PUBLIC_URL");
+  if (site) lines.push("", `Confirm or cancel: ${site}/admin/bookings?client_id=${client.id}`);
+  return lines.join("\n");
 }
 
 /** The model sometimes repeats a confirmed booking on the next turn. */

@@ -17,12 +17,20 @@ requests 2026-10-21 (22 tests pass).
 VERIFIED LIVE 2026-10-21 17:13: the user set the old sandbox webhook to the Worker, sent "lamsa" from
 +971509949757, and booked over WhatsApp (booking #1, Blow-dry, 2026-10-22 15:00, kept as a demo row).
 
+Added 2026-10-21 (after the first booking):
+- Admin page Confirm/Cancel buttons (POST /admin/bookings/status, same-origin only). WhatsApp customers get
+  a bilingual message from TWILIO_WHATSAPP_FROM (only within 24 h of their last message); web bookings
+  show "call <phone>". Verified live: booking #1 confirmed, message arrived.
+- ADMIN_TOKEN changed from the weak dev value to a random one (in .dev.vars).
+- New-booking alerts to the owner's Telegram: bot @Lamsa131_bot, TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+  (934354785, the user's chat) in .dev.vars; link uses PUBLIC_URL. Test alert delivered. 27 tests pass.
+
 Next:
 1. Start the price bot (start-bot.bat) and check that a non-lamsa number (or "price") still gets price answers
    through the Worker. Until then the price route replies "offline, send lamsa".
 2. Later: point the site's WhatsApp buttons at the sandbox, or keep the salon number.
 3. Optional: delete the unused Neon project `lamsa-bot` and the unused 2nd Twilio trial (AC915116...).
-4. Rotate the Twilio auth tokens (both were pasted in chat), then update .dev.vars + start-bot.bat and redeploy.
+4. Rotate the Twilio auth tokens and the Telegram bot token (all were pasted in chat; Telegram: @BotFather /revoke), then update .dev.vars + start-bot.bat and redeploy.
 
 ## Earlier (2026-10-20)
 
